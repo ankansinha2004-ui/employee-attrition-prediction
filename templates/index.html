@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Employee attrition predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #eef1f4;
+    --panel: #ffffff;
+    --ink: #1b2430;
+    --muted: #5d6978;
+    --line: #cfd6de;
+    --accent: #0f5f66;
+    --leave: #b3402f;
+    --stay: #2c6b4a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #141a21;
+      --panel: #1c242d;
+      --ink: #e8edf2;
+      --muted: #9aa7b5;
+      --line: #35414d;
+      --accent: #5cc0c7;
+      --leave: #ef7c6a;
+      --stay: #6fcf9b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 1020px;
+    margin: 0 auto;
+    padding: 48px 20px 64px;
+  }
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+    margin: 0 0 10px;
+    max-width: 16ch;
+  }
+  .lede { color: var(--muted); margin: 0 0 36px; max-width: 52ch; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+
+  form {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 24px;
+  }
+  fieldset { border: 0; margin: 0 0 22px; padding: 0; }
+  legend { font-weight: 700; padding: 0; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 0.9rem; font-weight: 500; }
+  .hint { display: block; font-weight: 400; color: var(--muted); font-size: 0.78rem; }
+  input, select {
+    width: 100%;
+    margin-top: 5px;
+    padding: 9px 10px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button {
+    font: inherit;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border: 0;
+    border-radius: 4px;
+    padding: 12px 22px;
+    cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { button { color: #0d1a1c; } }
+  button:disabled { opacity: 0.6; cursor: wait; }
+
+  .result {
+    position: sticky;
+    top: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--line);
+    border-radius: 6px;
+    padding: 24px;
+    min-height: 200px;
+  }
+  .result.leave { border-left-color: var(--leave); }
+  .result.stay { border-left-color: var(--stay); }
+  .result h2 { margin: 0 0 6px; font-size: 1rem; color: var(--muted); font-weight: 500; }
+  .verdict {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 1.9rem;
+    line-height: 1.15;
+    margin: 0 0 18px;
+  }
+  .leave .verdict { color: var(--leave); }
+  .stay .verdict { color: var(--stay); }
+  .bar { height: 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; background: var(--leave); transition: width 0.4s ease; }
+  .stay .bar span { background: var(--stay); }
+  .prob { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; }
+  .empty { color: var(--muted); margin: 0; }
+  .error { color: var(--leave); margin: 0; font-weight: 500; }
+  @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Will this employee leave?</h1>
+  <p class="lede">Enter the employee's details. The model returns the chance they leave the company.</p>
+
+  <div class="layout">
+    <form id="form" novalidate>
+      <fieldset>
+        <legend>Performance</legend>
+        <div class="grid">
+          <label>Satisfaction level
+            <span class="hint">0 to 1</span>
+            <input type="number" name="satisfaction_level" min="0" max="1" step="0.01" value="0.38" required>
+          </label>
+          <label>Last evaluation score
+            <span class="hint">0 to 1</span>
+            <input type="number" name="last_evaluation" min="0" max="1" step="0.01" value="0.53" required>
+          </label>
+          <label>Number of projects
+            <span class="hint">Usually 2 to 7</span>
+            <input type="number" name="number_project" min="1" max="10" step="1" value="2" required>
+          </label>
+          <label>Average monthly hours
+            <span class="hint">Usually 96 to 310</span>
+            <input type="number" name="average_montly_hours" min="50" max="350" step="1" value="157" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Career</legend>
+        <div class="grid">
+          <label>Years at company
+            <input type="number" name="time_spend_company" min="1" max="40" step="1" value="3" required>
+          </label>
+          <label>Work accident
+            <select name="Work_accident">
+              <option value="0">No</option>
+              <option value="1">Yes</option>
+            </select>
+          </label>
+          <label>Promoted in last 5 years
+            <select name="promotion_last_5years">
+              <option value="0">No</option>
+              <option value="1">Yes</option>
+            </select>
+          </label>
+          <label>Salary level
+            <select name="salary">
+              <option value="0">High</option>
+              <option value="1" selected>Low</option>
+              <option value="2">Medium</option>
+            </select>
+          </label>
+          <label>Department
+            <select name="Department">
+              <option value="0">IT</option>
+              <option value="1">R&amp;D</option>
+              <option value="2">Accounting</option>
+              <option value="3">HR</option>
+              <option value="4">Management</option>
+              <option value="5">Marketing</option>
+              <option value="6">Product management</option>
+              <option value="7" selected>Sales</option>
+              <option value="8">Support</option>
+              <option value="9">Technical</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <button type="submit" id="go">Predict attrition</button>
+    </form>
+
+    <aside class="result" id="result" aria-live="polite">
+      <p class="empty">Fill in the form and select Predict attrition to see the result here.</p>
+    </aside>
+  </div>
+</main>
+
+<script>
+  const form = document.getElementById("form");
+  const result = document.getElementById("result");
+  const button = document.getElementById("go");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    button.disabled = true;
+    result.className = "result";
+
+    try {
+      const response = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        result.innerHTML = '<p class="error"></p>';
+        result.querySelector(".error").textContent = data.error;
+        return;
+      }
+
+      const leaving = data.prediction === 1;
+      result.className = "result " + (leaving ? "leave" : "stay");
+      result.innerHTML =
+        "<h2>Prediction</h2>" +
+        '<p class="verdict"></p>' +
+        '<div class="bar"><span></span></div>' +
+        '<p class="prob"></p>';
+      result.querySelector(".verdict").textContent = data.label;
+      result.querySelector(".prob").textContent = data.probability + "% chance of leaving";
+      requestAnimationFrame(() => {
+        result.querySelector(".bar span").style.width = data.probability + "%";
+      });
+    } catch (err) {
+      result.innerHTML = '<p class="error">Could not reach the server. Check that app.py is running.</p>';
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
